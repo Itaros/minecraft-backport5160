@@ -59,7 +59,8 @@ public class Forge5160Transformer implements IClassTransformer {
                     new ImmutablePair("posY", "field_70163_u"),
                     new ImmutablePair("posZ", "field_70161_v"),
                     new ImmutablePair("worldObj", "field_70170_p"),
-                    new ImmutablePair("isAddedToWorld", "isAddedToWorld")//WE ADD IT
+                    new ImmutablePair("isAddedToWorld", "isAddedToWorld"),//WE ADD IT
+                    new ImmutablePair("isRemote", "field_72995_K")
             }
     );
 
@@ -225,6 +226,13 @@ public class Forge5160Transformer implements IClassTransformer {
                             public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf) {
                                 //We need to insert critical accessor call to trick game to load a chunk and then discard
                                 if (name.equals(resolverMethodNames.getName("setPosition"))) {
+                                    Label excludeLabel = new Label();
+                                    
+                                    visitVarInsn(Opcodes.ALOAD, 0);//Entity = this (load from this)
+                                    visitFieldInsn(Opcodes.GETFIELD, owner, resolverFieldNames.getName("worldObj"), "L"+ASMUtils.internalize(resolverClassNames.getName("net.minecraft.world.World", SimpleNameResolver.NamingPolicy.PKG))+";");//World
+                                    visitFieldInsn(Opcodes.GETFIELD, ASMUtils.internalize(resolverClassNames.getName("net.minecraft.world.World", SimpleNameResolver.NamingPolicy.PKG)), resolverFieldNames.getName("isRemote"), "Z");//isRemote
+                                    visitJumpInsn(Opcodes.IFNE, excludeLabel);//Exclude update if world.isRemote evaluates to true
+                                    
                                     //Argument zero(callsite locality)
                                     visitVarInsn(Opcodes.ALOAD, 0);//Entity = this (load from this)
                                     visitFieldInsn(Opcodes.GETFIELD, owner, resolverFieldNames.getName("worldObj"), "L"+ASMUtils.internalize(resolverClassNames.getName("net.minecraft.world.World", SimpleNameResolver.NamingPolicy.PKG))+";");//World
@@ -247,6 +255,8 @@ public class Forge5160Transformer implements IClassTransformer {
                                         visitLdcInsn("Chunkload has been forced!");
                                         visitMethodInsn(Opcodes.INVOKESTATIC, "ru/itaros/backport5160/DebugProbe", resolverMethodNames.getName("notifyCall"), "(Ljava/lang/String;)V", false);
                                     }
+                                    
+                                    visitLabel(excludeLabel);//End of exclusion zone for client side
                                 }
                                 super.visitMethodInsn(opcode, owner, name, desc, itf);
                             }
@@ -304,9 +314,16 @@ public class Forge5160Transformer implements IClassTransformer {
                                                 if (name.equals(resolverFieldNames.getName("posZ"))) {
                                                     //Inserting after posZ assignment(as we called super before)
                                                     Label excludeLabel = new Label();
+                                                    
                                                     visitVarInsn(Opcodes.ALOAD, 0);//Entity = this (load from this)
                                                     visitMethodInsn(Opcodes.INVOKEVIRTUAL, owner, resolverMethodNames.getName("isAddedToWorld"), "()Z", false);
                                                     visitJumpInsn(Opcodes.IFEQ, excludeLabel);//Exclude update if isAddedToWorld evaluates to false
+                                                    
+                                                    visitVarInsn(Opcodes.ALOAD, 0);//Entity = this (load from this)
+                                                    visitFieldInsn(Opcodes.GETFIELD, owner, resolverFieldNames.getName("worldObj"), "L"+ASMUtils.internalize(resolverClassNames.getName("net.minecraft.world.World", SimpleNameResolver.NamingPolicy.PKG))+";");//World
+                                                    visitFieldInsn(Opcodes.GETFIELD, ASMUtils.internalize(resolverClassNames.getName("net.minecraft.world.World", SimpleNameResolver.NamingPolicy.PKG)), resolverFieldNames.getName("isRemote"), "Z");//isRemote
+                                                    visitJumpInsn(Opcodes.IFNE, excludeLabel);//Exclude update if world.isRemote evaluates to true
+                                                    
                                                     //Forces world to recognize the entity on each movement. EWH!!!
                                                     visitVarInsn(Opcodes.ALOAD, 0);//Entity = this (load from this)
                                                     visitFieldInsn(Opcodes.GETFIELD, owner, resolverFieldNames.getName("worldObj"), "L"+ASMUtils.internalize(resolverClassNames.getName("net.minecraft.world.World", SimpleNameResolver.NamingPolicy.PKG))+";");//World
@@ -318,7 +335,7 @@ public class Forge5160Transformer implements IClassTransformer {
                                                         visitLdcInsn("PATCHED!!!");
                                                         visitMethodInsn(Opcodes.INVOKESTATIC, "ru/itaros/backport5160/DebugProbe", "notifyCall", "(Ljava/lang/String;)V", false);
                                                     }
-                                                    visitLabel(excludeLabel);//End of exclusion zone for non-tracked entities
+                                                    visitLabel(excludeLabel);//End of exclusion zone for non-tracked entities or client side
                                                 }
                                             }
 
