@@ -1,4 +1,10 @@
+/* Eclipse */
 /eclipse
+/.classpath
+/.project
+/.settings
+/bin
+
 /.idea
 /build
 /.gradle
